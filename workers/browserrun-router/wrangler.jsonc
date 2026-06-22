@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "browserrun-router",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-22",
+  "vars": {
+    "DEFAULT_ENGINE": "pi"
+  }
+}

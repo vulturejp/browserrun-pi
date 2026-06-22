@@ -1,0 +1,30 @@
+FROM node:20-bookworm-slim
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV BROWSERRUN_CHROMIUM_PATH=/usr/bin/chromium
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    chromium \
+    coreutils \
+    dumb-init \
+    fonts-liberation \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    fonts-noto-core \
+    tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
+
+COPY run-job.js ./
+
+RUN useradd --create-home --shell /usr/sbin/nologin pwuser
+USER pwuser
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "/app/run-job.js", "/work/job.json", "/artifacts"]

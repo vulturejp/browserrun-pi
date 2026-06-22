@@ -1,0 +1,30 @@
+[Unit]
+Description=browserrun-pi disposable browser runner API
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/browserrun-pi/server
+Environment=BROWSERRUN_HOST=127.0.0.1
+Environment=BROWSERRUN_PORT=8787
+Environment=BROWSERRUN_RUNNER_IMAGE=browserrun-pi-runner:latest
+Environment=BROWSERRUN_ARTIFACT_ROOT=/var/lib/browserrun-pi/artifacts
+Environment=BROWSERRUN_CONTAINER_RUNTIME=docker
+Environment=BROWSERRUN_MEMORY=1g
+Environment=BROWSERRUN_CPUS=2
+EnvironmentFile=/etc/browserrun-pi.env
+ExecStart=/usr/bin/node /opt/browserrun-pi/server/src/server.js
+Restart=on-failure
+RestartSec=3
+User=browserrun
+Group=browserrun
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/browserrun-pi
+
+[Install]
+WantedBy=multi-user.target
+

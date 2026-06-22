@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>browserrun-pi</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">browserrun-pi</div>
+      <nav>
+        <a href="#runs">Runs</a>
+        <a href="#quick">Quick Actions</a>
+        <a href="#domains">Domains</a>
+        <a href="#settings">Settings</a>
+        <a href="#tunnel">Tunnel</a>
+      </nav>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <h1>Runs</h1>
+          <p>Pi-first browser execution over the home connection.</p>
+        </div>
+        <div class="auth">
+          <input id="token" type="password" placeholder="API token">
+          <button id="save-token">Use token</button>
+        </div>
+      </header>
+
+      <section id="status" class="panel"></section>
+
+      <section id="quick" class="panel">
+        <h2>Quick Action</h2>
+        <div class="grid">
+          <label>Action
+            <select id="action">
+              <option value="screenshot">screenshot</option>
+              <option value="content">content</option>
+              <option value="pdf">pdf</option>
+              <option value="snapshot">snapshot</option>
+              <option value="links">links</option>
+              <option value="scrape">scrape</option>
+            </select>
+          </label>
+          <label>Fingerprint
+            <select id="fingerprint">
+              <option value="standard">standard</option>
+              <option value="none">none</option>
+              <option value="mobile">mobile</option>
+            </select>
+          </label>
+          <label>URL
+            <input id="url" type="url" placeholder="https://example.com">
+          </label>
+          <label>Selector
+            <input id="selector" type="text" placeholder="body">
+          </label>
+        </div>
+        <button id="run">Run on Pi</button>
+        <pre id="run-result"></pre>
+      </section>
+
+      <section id="runs" class="panel">
+        <h2>Run History</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Status</th>
+              <th>URL</th>
+              <th>Profile</th>
+              <th>Artifacts</th>
+            </tr>
+          </thead>
+          <tbody id="jobs"></tbody>
+        </table>
+      </section>
+
+      <section id="domains" class="panel">
+        <h2>Domains</h2>
+        <p>Default minimum interval: 168 hours. This UI does not enforce robots.txt.</p>
+        <textarea id="domains-json" rows="8" spellcheck="false"></textarea>
+        <button id="save-domains">Save domains</button>
+      </section>
+
+      <section id="settings" class="panel">
+        <h2>Settings</h2>
+        <pre id="config"></pre>
+      </section>
+
+      <section id="tunnel" class="panel">
+        <h2>Tunnel</h2>
+        <pre id="tunnel-guide"></pre>
+      </section>
+    </main>
+    <script src="/admin/admin.js"></script>
+  </body>
+</html>

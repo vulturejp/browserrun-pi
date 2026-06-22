@@ -1,0 +1,16 @@
+{
+  "name": "browserrun-pi-runner",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.53.0"
+  },
+  "scripts": {
+    "start": "node /app/run-job.js /work/job.json /artifacts"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
