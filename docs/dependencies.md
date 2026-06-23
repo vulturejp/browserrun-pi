@@ -12,8 +12,8 @@ This project intentionally keeps dependencies small and explicit.
 ## `server/package.json`
 
 - `dependencies`: none
-- `devDependencies`: none
-- Tests use Node.js built-in `node --test`.
+- `devDependencies`: `typescript`, `@types/node`
+- Tests use Node.js built-in `node --test` after `npm run build`.
 
 ## Runner Runtime
 
@@ -26,9 +26,10 @@ This project intentionally keeps dependencies small and explicit.
 
 ## `runner/package.json`
 
-- `playwright`
+- `dependencies`: `playwright`
+- `devDependencies`: `typescript`, `@types/node`
 
-No stealth package is allowed. Browser consistency adjustments are implemented through explicit Chromium/context options and a small project-owned init script in `runner/run-job.js`.
+No stealth package is allowed. Browser consistency adjustments are implemented through explicit Chromium/context options and a small project-owned init script in `runner/run-job.ts`.
 
 ## Pi Runner Image Packages
 
@@ -48,6 +49,7 @@ No stealth package is allowed. Browser consistency adjustments are implemented t
 
 - Cloudflare Workers runtime
 - Wrangler CLI for deployment
+- TypeScript source handled by Wrangler
 - No browser automation package in the Worker
 
 ## Cloudflare Services
@@ -55,4 +57,3 @@ No stealth package is allowed. Browser consistency adjustments are implemented t
 - Cloudflare Tunnel through `cloudflared`
 - Cloudflare Access Service Token
 - Optional Cloudflare Browser Run binding only for explicit `engine: "cloudflare"`
-

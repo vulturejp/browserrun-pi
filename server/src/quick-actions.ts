@@ -2,7 +2,7 @@ export const quickActionNames = new Set(['screenshot', 'content', 'pdf', 'snapsh
 
 export function quickActionToJob(actionName, input) {
   if (!quickActionNames.has(actionName)) {
-    const error = new Error('unsupported quick action');
+    const error: any = new Error('unsupported quick action');
     error.statusCode = 501;
     throw error;
   }

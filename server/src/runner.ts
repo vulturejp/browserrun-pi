@@ -4,6 +4,8 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
 export class ContainerRunner {
+  config: any;
+
   constructor(config) {
     this.config = config;
   }
@@ -92,7 +94,7 @@ export class ContainerRunner {
       'timeout',
       `${timeoutSeconds}s`,
       'node',
-      '/app/run-job.js',
+      '/app/dist/run-job.js',
       '/work/job.json',
       '/artifacts'
     ];

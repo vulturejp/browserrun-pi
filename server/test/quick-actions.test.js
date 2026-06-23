@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { quickActionToJob } from '../src/quick-actions.js';
-import { validateJob } from '../src/validation.js';
+import { quickActionToJob } from '../dist/quick-actions.js';
+import { validateJob } from '../dist/validation.js';
 
 const config = {
   defaultTimeoutMs: 60000,

@@ -3,6 +3,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 export class JobStore {
+  root: string;
+  jobs: Map<string, any>;
+
   constructor(root) {
     this.root = root;
     this.jobs = new Map();

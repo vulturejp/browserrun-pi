@@ -8,12 +8,13 @@ const root = path.resolve(new URL('../../', import.meta.url).pathname);
 test('server package has no external dependencies', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'server/package.json'), 'utf8'));
   assert.deepEqual(pkg.dependencies || {}, {});
-  assert.deepEqual(pkg.devDependencies || {}, {});
+  assert.deepEqual(Object.keys(pkg.devDependencies || {}).sort(), ['@types/node', 'typescript']);
 });
 
 test('runner package depends only on Playwright', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'runner/package.json'), 'utf8'));
   assert.deepEqual(Object.keys(pkg.dependencies || {}), ['playwright']);
+  assert.deepEqual(Object.keys(pkg.devDependencies || {}).sort(), ['@types/node', 'typescript']);
 });
 
 test('runtime manifests do not include prohibited stealth dependencies', () => {
@@ -29,7 +30,7 @@ test('runtime manifests do not include prohibited stealth dependencies', () => {
     'runner/Dockerfile',
     'runner/Dockerfile.pi',
     'workers/browserrun-router/wrangler.jsonc',
-    'workers/browserrun-router/src/index.js'
+    'workers/browserrun-router/src/index.ts'
   ];
 
   for (const file of files) {

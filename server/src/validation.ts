@@ -201,7 +201,7 @@ function isObject(value) {
 }
 
 function badRequest(message) {
-  const error = new Error(message);
+  const error: any = new Error(message);
   error.statusCode = 400;
   return error;
 }

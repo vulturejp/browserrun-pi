@@ -19,10 +19,11 @@ const server = http.createServer(async (req, res) => {
   try {
     await route(req, res);
   } catch (error) {
-    sendJson(res, error.statusCode || 500, {
-      error: error.statusCode ? error.message : 'internal server error'
+    const httpError = error as any;
+    sendJson(res, httpError.statusCode || 500, {
+      error: httpError.statusCode ? httpError.message : 'internal server error'
     });
-    if (!error.statusCode) {
+    if (!httpError.statusCode) {
       console.error(error);
     }
   }
@@ -256,13 +257,13 @@ async function readDomainRules() {
 
 function validateDomainRule(rule) {
   if (!rule || typeof rule !== 'object') {
-    const error = new Error('domain rule must be an object');
+    const error: any = new Error('domain rule must be an object');
     error.statusCode = 400;
     throw error;
   }
   const domain = String(rule.domain || '').toLowerCase().trim();
   if (!/^[a-z0-9.-]+$/.test(domain) || domain.length > 253) {
-    const error = new Error('domain must be a hostname');
+    const error: any = new Error('domain must be a hostname');
     error.statusCode = 400;
     throw error;
   }
@@ -306,7 +307,7 @@ function requireAuth(req) {
   if (config.allowNoAuth) return;
   const header = req.headers.authorization || '';
   if (header !== `Bearer ${config.apiToken}`) {
-    const error = new Error('unauthorized');
+    const error: any = new Error('unauthorized');
     error.statusCode = 401;
     throw error;
   }
@@ -318,7 +319,7 @@ async function readJson(req) {
   for await (const chunk of req) {
     size += chunk.length;
     if (size > 1024 * 1024) {
-      const error = new Error('request body too large');
+      const error: any = new Error('request body too large');
       error.statusCode = 413;
       throw error;
     }
@@ -327,7 +328,7 @@ async function readJson(req) {
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
   } catch {
-    const error = new Error('invalid JSON');
+    const error: any = new Error('invalid JSON');
     error.statusCode = 400;
     throw error;
   }

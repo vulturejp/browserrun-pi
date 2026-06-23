@@ -143,7 +143,7 @@ async function writeJson(name, value) {
   await fs.writeFile(artifactPath(name), JSON.stringify(value, null, 2), 'utf8');
 }
 
-function buildFingerprint(input) {
+function buildFingerprint(input): any {
   const profile = input.fingerprintProfile || 'standard';
   const locale = input.locale || 'en-US';
   const timezoneId = input.timezoneId || 'Asia/Tokyo';

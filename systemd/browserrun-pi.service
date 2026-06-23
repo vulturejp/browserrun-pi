@@ -14,7 +14,7 @@ Environment=BROWSERRUN_CONTAINER_RUNTIME=docker
 Environment=BROWSERRUN_MEMORY=1g
 Environment=BROWSERRUN_CPUS=2
 EnvironmentFile=/etc/browserrun-pi.env
-ExecStart=/usr/bin/node /opt/browserrun-pi/server/src/server.js
+ExecStart=/usr/bin/node /opt/browserrun-pi/server/dist/server.js
 Restart=on-failure
 RestartSec=3
 User=browserrun
@@ -27,4 +27,3 @@ ReadWritePaths=/var/lib/browserrun-pi
 
 [Install]
 WantedBy=multi-user.target
-

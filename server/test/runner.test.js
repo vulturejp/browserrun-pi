@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ContainerRunner } from '../src/runner.js';
+import { ContainerRunner } from '../dist/runner.js';
 
 test('quality preset changes container resource args', async () => {
   const artifactDir = await mkdtemp(path.join(tmpdir(), 'browserrun-pi-'));

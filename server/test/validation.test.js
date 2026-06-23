@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeArtifactName, validateJob } from '../src/validation.js';
+import { sanitizeArtifactName, validateJob } from '../dist/validation.js';
 
 const config = {
   defaultTimeoutMs: 60000,
@@ -38,4 +38,3 @@ test('validates supported actions', () => {
 
   assert.equal(job.actions.length, 6);
 });
-

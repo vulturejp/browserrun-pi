@@ -20,6 +20,8 @@ Start the API server:
 
 ```sh
 cd server
+npm install
+npm run build
 BROWSERRUN_API_TOKEN=change-me npm start
 ```
 
@@ -130,4 +132,5 @@ Downloads an artifact created by the job.
 - Browser state is not reused. Every job starts a new browser profile and a new container.
 - `BROWSERRUN_RUNNER_PRESET` may be `low-memory`, `balanced`, or `quality`; `balanced` is the default for Raspberry Pi 5.
 - The Pi image is available at `runner/Dockerfile.pi` and uses system Chromium plus explicitly listed font/runtime packages.
+- Server and runner source are TypeScript. Run `npm run build` before starting the server outside Docker.
 - See `docs/dependencies.md` for the full dependency list.
