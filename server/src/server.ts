@@ -1,9 +1,11 @@
 import http from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from './config.js';
 import { JobStore } from './job-store.js';
+import type { JobPayload } from './validation.js';
 import { ContainerRunner } from './runner.js';
 import { sanitizeArtifactName, validateJob } from './validation.js';
 import { quickActionNames, quickActionToJob } from './quick-actions.js';
@@ -11,7 +13,7 @@ import { quickActionNames, quickActionToJob } from './quick-actions.js';
 const config = loadConfig();
 const store = new JobStore(config.artifactRoot);
 const runner = new ContainerRunner(config);
-let activeJobId = null;
+let activeJobId: string | null = null;
 
 await store.init();
 
@@ -33,13 +35,13 @@ server.listen(config.port, config.host, () => {
   console.log(`browserrun-pi listening on http://${config.host}:${config.port}`);
 });
 
-async function route(req, res) {
+async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.url === '/healthz' && req.method === 'GET') {
     sendJson(res, 200, { ok: true, activeJobId });
     return;
   }
 
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
     await serveStatic(res, 'index.html');
@@ -114,26 +116,30 @@ async function route(req, res) {
   sendJson(res, 404, { error: 'not found' });
 }
 
-async function handleRun(req, res) {
+async function handleRun(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readJson(req);
   const payload = validateJob(body, config);
   const job = await enqueueJob(payload, res);
   if (job) sendJson(res, 202, store.serialize(job));
 }
 
-async function handleQuickAction(req, res, actionName) {
+async function handleQuickAction(req: IncomingMessage, res: ServerResponse, actionName: string): Promise<void> {
   if (!quickActionNames.has(actionName)) {
     sendJson(res, 501, { error: `${actionName} is not implemented in browserrun-pi v1` });
     return;
   }
 
   const body = await readJson(req);
+  if (!isObject(body)) {
+    sendJson(res, 400, { error: 'Request body must be a JSON object.' });
+    return;
+  }
   const payload = validateJob(quickActionToJob(actionName, body), config);
   const job = await enqueueJob(payload, res);
   if (job) sendJson(res, 202, store.serialize(job));
 }
 
-async function enqueueJob(payload, res) {
+async function enqueueJob(payload: JobPayload, res: ServerResponse) {
   if (activeJobId !== null) {
     sendJson(res, 409, { error: 'busy', activeJobId });
     return null;
@@ -158,7 +164,7 @@ async function enqueueJob(payload, res) {
   return job;
 }
 
-async function handleGetJob(res, id) {
+async function handleGetJob(res: ServerResponse, id: string): Promise<void> {
   const job = store.get(id);
   if (!job) {
     sendJson(res, 404, { error: 'job not found' });
@@ -168,14 +174,14 @@ async function handleGetJob(res, id) {
   sendJson(res, 200, store.serialize(job));
 }
 
-async function handleAdminJobs(res) {
+async function handleAdminJobs(res: ServerResponse): Promise<void> {
   for (const job of store.list()) {
     await store.listArtifacts(job).catch(() => {});
   }
   sendJson(res, 200, { jobs: store.list().map((job) => store.serialize(job)) });
 }
 
-function handleAdminStatus(res) {
+function handleAdminStatus(res: ServerResponse): void {
   sendJson(res, 200, {
     ok: true,
     activeJobId,
@@ -188,7 +194,7 @@ function handleAdminStatus(res) {
   });
 }
 
-function handleAdminConfig(res) {
+function handleAdminConfig(res: ServerResponse): void {
   sendJson(res, 200, {
     host: config.host,
     port: config.port,
@@ -208,7 +214,7 @@ function handleAdminConfig(res) {
   });
 }
 
-function handleTunnelGuide(res) {
+function handleTunnelGuide(res: ServerResponse): void {
   sendJson(res, 200, {
     defaultEngine: 'pi',
     tunnelTarget: `http://${config.host}:${config.port}`,
@@ -229,15 +235,19 @@ function handleTunnelGuide(res) {
   });
 }
 
-async function handleGetDomains(res) {
+async function handleGetDomains(res: ServerResponse): Promise<void> {
   sendJson(res, 200, {
     defaultMinIntervalHours: config.defaultMinIntervalHours,
     domains: await readDomainRules()
   });
 }
 
-async function handlePutDomains(req, res) {
+async function handlePutDomains(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readJson(req);
+  if (!isObject(body)) {
+    sendJson(res, 400, { error: 'Request body must be a JSON object.' });
+    return;
+  }
   if (!Array.isArray(body.domains)) {
     sendJson(res, 400, { error: 'domains must be an array' });
     return;
@@ -247,7 +257,7 @@ async function handlePutDomains(req, res) {
   sendJson(res, 200, { domains });
 }
 
-async function readDomainRules() {
+async function readDomainRules(): Promise<DomainRule[]> {
   try {
     return JSON.parse(await fsp.readFile(domainRulesPath(), 'utf8'));
   } catch {
@@ -255,31 +265,33 @@ async function readDomainRules() {
   }
 }
 
-function validateDomainRule(rule) {
+function validateDomainRule(rule: unknown): DomainRule {
   if (!rule || typeof rule !== 'object') {
     const error: any = new Error('domain rule must be an object');
     error.statusCode = 400;
     throw error;
   }
-  const domain = String(rule.domain || '').toLowerCase().trim();
+  const raw = rule as Record<string, unknown>;
+  const domain = String(raw.domain || '').toLowerCase().trim();
   if (!/^[a-z0-9.-]+$/.test(domain) || domain.length > 253) {
     const error: any = new Error('domain must be a hostname');
     error.statusCode = 400;
     throw error;
   }
-  const engine = ['pi', 'cloudflare', 'auto', 'disabled'].includes(rule.engine) ? rule.engine : 'pi';
-  const fingerprintProfile = ['none', 'standard', 'mobile'].includes(rule.fingerprintProfile) ? rule.fingerprintProfile : config.defaultFingerprintProfile;
-  const minIntervalHours = Number.isInteger(rule.minIntervalHours) && rule.minIntervalHours >= 1 && rule.minIntervalHours <= 8760
-    ? rule.minIntervalHours
+  const engine = isDomainEngine(raw.engine) ? raw.engine : 'pi';
+  const fingerprintProfile = isFingerprintProfile(raw.fingerprintProfile) ? raw.fingerprintProfile : config.defaultFingerprintProfile;
+  const rawMinIntervalHours = raw.minIntervalHours;
+  const minIntervalHours = typeof rawMinIntervalHours === 'number' && Number.isInteger(rawMinIntervalHours) && rawMinIntervalHours >= 1 && rawMinIntervalHours <= 8760
+    ? rawMinIntervalHours
     : config.defaultMinIntervalHours;
   return { domain, engine, fingerprintProfile, minIntervalHours };
 }
 
-function domainRulesPath() {
+function domainRulesPath(): string {
   return path.join(config.artifactRoot, 'domain-rules.json');
 }
 
-async function handleArtifact(res, id, rawName) {
+async function handleArtifact(res: ServerResponse, id: string, rawName: string): Promise<void> {
   const job = store.get(id);
   if (!job) {
     sendJson(res, 404, { error: 'job not found' });
@@ -303,7 +315,7 @@ async function handleArtifact(res, id, rawName) {
   fs.createReadStream(artifactPath).pipe(res);
 }
 
-function requireAuth(req) {
+function requireAuth(req: IncomingMessage): void {
   if (config.allowNoAuth) return;
   const header = req.headers.authorization || '';
   if (header !== `Bearer ${config.apiToken}`) {
@@ -313,17 +325,18 @@ function requireAuth(req) {
   }
 }
 
-async function readJson(req) {
-  const chunks = [];
+async function readJson(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
-    size += chunk.length;
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
     if (size > 1024 * 1024) {
       const error: any = new Error('request body too large');
       error.statusCode = 413;
       throw error;
     }
-    chunks.push(chunk);
+    chunks.push(buffer);
   }
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
@@ -334,12 +347,12 @@ async function readJson(req) {
   }
 }
 
-function sendJson(res, statusCode, body) {
+function sendJson(res: ServerResponse, statusCode: number, body: unknown): void {
   res.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(body, null, 2));
 }
 
-function contentType(name) {
+function contentType(name: string): string {
   if (name.endsWith('.png')) return 'image/png';
   if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
   if (name.endsWith('.pdf')) return 'application/pdf';
@@ -351,7 +364,7 @@ function contentType(name) {
   return 'application/octet-stream';
 }
 
-async function serveStatic(res, requestedPath) {
+async function serveStatic(res: ServerResponse, requestedPath: string): Promise<void> {
   const publicRoot = path.resolve(new URL('../public', import.meta.url).pathname);
   const safePath = requestedPath === '' ? 'index.html' : requestedPath;
   const filePath = path.resolve(publicRoot, safePath);
@@ -366,4 +379,24 @@ async function serveStatic(res, requestedPath) {
   } catch {
     sendJson(res, 404, { error: 'not found' });
   }
+}
+
+type DomainEngine = 'pi' | 'cloudflare' | 'auto' | 'disabled';
+type DomainRule = {
+  domain: string;
+  engine: DomainEngine;
+  fingerprintProfile: 'none' | 'standard' | 'mobile';
+  minIntervalHours: number;
+};
+
+function isDomainEngine(value: unknown): value is DomainEngine {
+  return typeof value === 'string' && ['pi', 'cloudflare', 'auto', 'disabled'].includes(value);
+}
+
+function isFingerprintProfile(value: unknown): value is DomainRule['fingerprintProfile'] {
+  return typeof value === 'string' && ['none', 'standard', 'mobile'].includes(value);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

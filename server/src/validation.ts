@@ -1,7 +1,28 @@
-const allowedActionTypes = new Set(['wait', 'click', 'type', 'evaluate', 'screenshot', 'pdf', 'html', 'snapshot', 'links', 'scrape']);
-const fingerprintProfiles = new Set(['none', 'standard', 'mobile']);
+export type FingerprintProfile = 'none' | 'standard' | 'mobile';
+export type Viewport = { width: number; height: number };
+export type JobAction = Record<string, unknown> & { type: string };
+export type JobPayload = {
+  url: string;
+  timeoutMs: number;
+  viewport: Viewport;
+  userAgent?: string;
+  headers: Record<string, string>;
+  fingerprintProfile: FingerprintProfile;
+  locale?: string;
+  timezoneId?: string;
+  actions: JobAction[];
+};
 
-export function validateJob(input, config) {
+type ConfigLike = {
+  defaultTimeoutMs: number;
+  maxTimeoutMs: number;
+  defaultFingerprintProfile?: FingerprintProfile;
+};
+
+const allowedActionTypes = new Set(['wait', 'click', 'type', 'evaluate', 'screenshot', 'pdf', 'html', 'snapshot', 'links', 'scrape']);
+const fingerprintProfiles = new Set<FingerprintProfile>(['none', 'standard', 'mobile']);
+
+export function validateJob(input: unknown, config: ConfigLike): JobPayload {
   if (!isObject(input)) {
     throw badRequest('Request body must be a JSON object.');
   }
@@ -29,7 +50,7 @@ export function validateJob(input, config) {
   };
 }
 
-export function sanitizeArtifactName(name) {
+export function sanitizeArtifactName(name: unknown): string {
   if (typeof name !== 'string' || name.length === 0 || name.length > 160) {
     throw badRequest('Artifact name must be a non-empty string up to 160 characters.');
   }
@@ -42,7 +63,7 @@ export function sanitizeArtifactName(name) {
   return name;
 }
 
-function normalizeUrl(value) {
+function normalizeUrl(value: unknown): string {
   if (typeof value !== 'string' || value.length > 4096) {
     throw badRequest('url must be a string.');
   }
@@ -58,31 +79,31 @@ function normalizeUrl(value) {
   return parsed.toString();
 }
 
-function validateTimeout(value, config) {
+function validateTimeout(value: unknown, config: ConfigLike): number {
   if (value === undefined) return config.defaultTimeoutMs;
-  if (!Number.isInteger(value) || value < 1000 || value > config.maxTimeoutMs) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1000 || value > config.maxTimeoutMs) {
     throw badRequest(`timeoutMs must be an integer between 1000 and ${config.maxTimeoutMs}.`);
   }
   return value;
 }
 
-function validateViewport(value) {
+function validateViewport(value: unknown): Viewport {
   if (value === undefined) return { width: 1280, height: 720 };
   if (!isObject(value)) throw badRequest('viewport must be an object.');
   const { width, height } = value;
-  if (!Number.isInteger(width) || width < 320 || width > 3840) {
+  if (typeof width !== 'number' || !Number.isInteger(width) || width < 320 || width > 3840) {
     throw badRequest('viewport.width must be an integer between 320 and 3840.');
   }
-  if (!Number.isInteger(height) || height < 240 || height > 2160) {
+  if (typeof height !== 'number' || !Number.isInteger(height) || height < 240 || height > 2160) {
     throw badRequest('viewport.height must be an integer between 240 and 2160.');
   }
   return { width, height };
 }
 
-function validateHeaders(value) {
+function validateHeaders(value: unknown): Record<string, string> {
   if (value === undefined) return {};
   if (!isObject(value)) throw badRequest('headers must be an object.');
-  const headers = {};
+  const headers: Record<string, string> = {};
   for (const [key, headerValue] of Object.entries(value)) {
     if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(key)) {
       throw badRequest(`Invalid header name: ${key}`);
@@ -92,7 +113,7 @@ function validateHeaders(value) {
   return headers;
 }
 
-function validateActions(value) {
+function validateActions(value: unknown): JobAction[] {
   if (value === undefined) return [{ type: 'screenshot', name: 'screenshot.png', fullPage: true }];
   if (!Array.isArray(value) || value.length > 25) {
     throw badRequest('actions must be an array with at most 25 entries.');
@@ -100,13 +121,14 @@ function validateActions(value) {
   return value.map((action, index) => validateAction(action, index));
 }
 
-function validateAction(action, index) {
+function validateAction(action: unknown, index: number): JobAction {
   if (!isObject(action)) throw badRequest(`actions[${index}] must be an object.`);
+  if (typeof action.type !== 'string') throw badRequest(`actions[${index}].type must be a string.`);
   if (!allowedActionTypes.has(action.type)) throw badRequest(`actions[${index}].type is not supported.`);
 
   switch (action.type) {
     case 'wait':
-      if (!Number.isInteger(action.ms) || action.ms < 0 || action.ms > 30000) {
+      if (typeof action.ms !== 'number' || !Number.isInteger(action.ms) || action.ms < 0 || action.ms > 30000) {
         throw badRequest(`actions[${index}].ms must be an integer between 0 and 30000.`);
       }
       return { type: 'wait', ms: action.ms };
@@ -168,39 +190,43 @@ function validateAction(action, index) {
   }
 }
 
-function validateFingerprintProfile(value, config) {
+function validateFingerprintProfile(value: unknown, config: ConfigLike): FingerprintProfile {
   const profile = value === undefined ? (config.defaultFingerprintProfile || 'standard') : value;
-  if (typeof profile !== 'string' || !fingerprintProfiles.has(profile)) {
+  if (!isFingerprintProfile(profile)) {
     throw badRequest('fingerprintProfile must be one of: none, standard, mobile.');
   }
   return profile;
 }
 
-function validateOptionalString(value, label, maxLength) {
+function validateOptionalString(value: unknown, label: string, maxLength: number): string | undefined {
   if (value === undefined) return undefined;
   return requireString(value, label, maxLength);
 }
 
-function requireString(value, label, maxLength) {
+function requireString(value: unknown, label: string, maxLength: number): string {
   if (typeof value !== 'string' || value.length > maxLength) {
     throw badRequest(`${label} must be a string up to ${maxLength} characters.`);
   }
   return value;
 }
 
-function optionalInteger(value, label, min, max) {
+function optionalInteger(value: unknown, label: string, min: number, max: number): number | undefined {
   if (value === undefined) return undefined;
-  if (!Number.isInteger(value) || value < min || value > max) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
     throw badRequest(`${label} must be an integer between ${min} and ${max}.`);
   }
   return value;
 }
 
-function isObject(value) {
+function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function badRequest(message) {
+function isFingerprintProfile(value: unknown): value is FingerprintProfile {
+  return typeof value === 'string' && fingerprintProfiles.has(value as FingerprintProfile);
+}
+
+function badRequest(message: string): Error & { statusCode: number } {
   const error: any = new Error(message);
   error.statusCode = 400;
   return error;

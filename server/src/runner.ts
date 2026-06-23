@@ -2,15 +2,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import type { AppConfig, RunnerPreset } from './config.js';
+import type { JobRecord } from './job-store.js';
 
 export class ContainerRunner {
-  config: any;
+  config: AppConfig;
 
-  constructor(config) {
+  constructor(config: AppConfig) {
     this.config = config;
   }
 
-  async run(job) {
+  async run(job: JobRecord): Promise<void> {
     job.status = 'running';
     job.startedAt = new Date().toISOString();
 
@@ -51,7 +53,7 @@ export class ContainerRunner {
       }
     } catch (error) {
       job.status = 'failed';
-      job.error = error.message;
+      job.error = error instanceof Error ? error.message : String(error);
       throw error;
     } finally {
       clearTimeout(killTimer);
@@ -60,7 +62,7 @@ export class ContainerRunner {
     }
   }
 
-  buildArgs(job, jobFile) {
+  buildArgs(job: JobRecord, jobFile: string): string[] {
     const timeoutSeconds = Math.ceil((job.payload.timeoutMs + 10000) / 1000);
     const preset = runnerPresets[this.config.runnerPreset] || runnerPresets.balanced;
     return [
@@ -100,13 +102,21 @@ export class ContainerRunner {
     ];
   }
 
-  async writeLog(dir, name, content) {
+  async writeLog(dir: string, name: string, content: string): Promise<void> {
     if (!content) return;
     await fs.writeFile(path.join(dir, name), content.slice(-1024 * 1024), 'utf8');
   }
 }
 
-const runnerPresets = {
+type RunnerPresetConfig = {
+  memoryLimit: string | null;
+  cpus: string | null;
+  tmpSize: string;
+  homeSize: string;
+  shmSize: string;
+};
+
+const runnerPresets: Record<RunnerPreset, RunnerPresetConfig> = {
   'low-memory': {
     memoryLimit: '768m',
     cpus: '1',

@@ -1,12 +1,37 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { FingerprintProfile, JobAction, JobPayload } from './validation.js';
+
+export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+
+export type JobRecord = {
+  id: string;
+  status: JobStatus;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  exitCode: number | null;
+  error: string | null;
+  artifacts: string[];
+  artifactDir: string;
+  payload: JobPayload;
+};
+
+export type SerializedJob = Omit<JobRecord, 'artifactDir' | 'payload'> & {
+  request: {
+    url: string;
+    timeoutMs: number;
+    fingerprintProfile: string;
+    actions: string[];
+  };
+};
 
 export class JobStore {
   root: string;
-  jobs: Map<string, any>;
+  jobs: Map<string, JobRecord>;
 
-  constructor(root) {
+  constructor(root: string) {
     this.root = root;
     this.jobs = new Map();
   }
@@ -16,12 +41,12 @@ export class JobStore {
     await this.loadExisting();
   }
 
-  async create(payload) {
+  async create(payload: JobPayload): Promise<JobRecord> {
     const id = crypto.randomUUID();
     const artifactDir = path.join(this.root, id);
     await fs.mkdir(artifactDir, { recursive: false });
 
-    const job = {
+    const job: JobRecord = {
       id,
       status: 'queued',
       createdAt: new Date().toISOString(),
@@ -38,11 +63,11 @@ export class JobStore {
     return job;
   }
 
-  get(id) {
+  get(id: string): JobRecord | undefined {
     return this.jobs.get(id);
   }
 
-  async listArtifacts(job) {
+  async listArtifacts(job: JobRecord): Promise<string[]> {
     const entries = await fs.readdir(job.artifactDir, { withFileTypes: true });
     job.artifacts = entries
       .filter((entry) => entry.isFile() && entry.name !== 'metadata.json' && entry.name !== 'job.json')
@@ -51,17 +76,17 @@ export class JobStore {
     return job.artifacts;
   }
 
-  list() {
+  list(): JobRecord[] {
     return Array.from(this.jobs.values())
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async save(job) {
+  async save(job: JobRecord): Promise<void> {
     await this.listArtifacts(job).catch(() => {});
     await fs.writeFile(path.join(job.artifactDir, 'metadata.json'), JSON.stringify(this.serialize(job), null, 2), 'utf8');
   }
 
-  serialize(job) {
+  serialize(job: JobRecord): SerializedJob {
     return {
       id: job.id,
       status: job.status,
@@ -75,20 +100,20 @@ export class JobStore {
         url: job.payload.url,
         timeoutMs: job.payload.timeoutMs,
         fingerprintProfile: job.payload.fingerprintProfile,
-        actions: job.payload.actions.map((action) => action.type)
+        actions: job.payload.actions.map((action: JobAction) => action.type)
       }
     };
   }
 
-  async loadExisting() {
+  async loadExisting(): Promise<void> {
     const entries = await fs.readdir(this.root, { withFileTypes: true }).catch(() => []);
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const artifactDir = path.join(this.root, entry.name);
       const metadataPath = path.join(artifactDir, 'metadata.json');
       try {
-        const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8'));
-        const job = {
+        const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8')) as SerializedJob;
+        const job: JobRecord = {
           id: metadata.id,
           status: metadata.status,
           createdAt: metadata.createdAt,
@@ -101,8 +126,10 @@ export class JobStore {
           payload: {
             url: metadata.request?.url || '',
             timeoutMs: metadata.request?.timeoutMs || 0,
-            fingerprintProfile: metadata.request?.fingerprintProfile || 'standard',
-            actions: (metadata.request?.actions || []).map((type) => ({ type }))
+            fingerprintProfile: normalizeFingerprintProfile(metadata.request?.fingerprintProfile),
+            viewport: { width: 1280, height: 720 },
+            headers: {},
+            actions: (metadata.request?.actions || []).map((type: string) => ({ type }))
           }
         };
         this.jobs.set(job.id, job);
@@ -112,4 +139,8 @@ export class JobStore {
       }
     }
   }
+}
+
+function normalizeFingerprintProfile(value: string | undefined): FingerprintProfile {
+  return value === 'none' || value === 'mobile' || value === 'standard' ? value : 'standard';
 }

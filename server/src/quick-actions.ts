@@ -1,6 +1,8 @@
 export const quickActionNames = new Set(['screenshot', 'content', 'pdf', 'snapshot', 'links', 'scrape']);
 
-export function quickActionToJob(actionName, input) {
+type QuickActionInput = Record<string, unknown>;
+
+export function quickActionToJob(actionName: string, input: QuickActionInput): QuickActionInput {
   if (!quickActionNames.has(actionName)) {
     const error: any = new Error('unsupported quick action');
     error.statusCode = 501;

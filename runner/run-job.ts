@@ -1,11 +1,40 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import type { Page } from 'playwright';
+
+type FingerprintProfile = 'none' | 'standard' | 'mobile';
+type Viewport = { width: number; height: number };
+type RunnerAction = Record<string, unknown> & { type: string; name?: string };
+type RunnerJob = {
+  url: string;
+  timeoutMs: number;
+  viewport?: Viewport;
+  userAgent?: string;
+  headers?: Record<string, string>;
+  fingerprintProfile?: FingerprintProfile;
+  locale?: string;
+  timezoneId?: string;
+  actions?: RunnerAction[];
+};
+type FingerprintSettings = {
+  viewport?: Viewport;
+  userAgent?: string;
+  locale: string;
+  timezoneId: string;
+  headers: Record<string, string>;
+  deviceScaleFactor: number;
+  isMobile: boolean;
+  hasTouch: boolean;
+  colorScheme: 'light' | 'dark' | 'no-preference';
+  reducedMotion: 'reduce' | 'no-preference';
+  initScript: string;
+};
 
 const jobFile = process.argv[2] || '/work/job.json';
 const artifactDir = process.argv[3] || '/artifacts';
 
-const job = JSON.parse(await fs.readFile(jobFile, 'utf8'));
+const job = JSON.parse(await fs.readFile(jobFile, 'utf8')) as RunnerJob;
 await fs.mkdir(artifactDir, { recursive: true });
 
 const fingerprint = buildFingerprint(job);
@@ -60,11 +89,12 @@ try {
     title: await page.title()
   });
 } catch (error) {
+  const caught = error instanceof Error ? error : new Error(String(error));
   await writeJson('error.json', {
     ok: false,
-    name: error.name,
-    message: error.message,
-    stack: error.stack
+    name: caught.name,
+    message: caught.message,
+    stack: caught.stack
   });
   throw error;
 } finally {
@@ -72,40 +102,40 @@ try {
   await browser.close().catch(() => {});
 }
 
-async function runAction(page, action) {
+async function runAction(page: Page, action: RunnerAction): Promise<void> {
   switch (action.type) {
     case 'wait':
-      await page.waitForTimeout(action.ms);
+      await page.waitForTimeout(numberValue(action.ms, 0));
       return;
     case 'click':
-      await page.click(action.selector, { timeout: action.timeoutMs });
+      await page.click(stringValue(action.selector), { timeout: optionalNumberValue(action.timeoutMs) });
       return;
     case 'type':
-      await page.fill(action.selector, action.text, { timeout: action.timeoutMs });
+      await page.fill(stringValue(action.selector), stringValue(action.text), { timeout: optionalNumberValue(action.timeoutMs) });
       return;
     case 'evaluate': {
-      const value = await page.evaluate(action.expression);
-      await writeJson(action.name, value);
+      const value = await page.evaluate(stringValue(action.expression));
+      await writeJson(requiredName(action), value);
       return;
     }
     case 'screenshot':
       await page.screenshot({
-        path: artifactPath(action.name),
-        fullPage: action.fullPage
+        path: artifactPath(requiredName(action)),
+        fullPage: action.fullPage !== false
       });
       return;
     case 'pdf':
       await page.pdf({
-        path: artifactPath(action.name),
-        format: action.format || 'A4',
+        path: artifactPath(requiredName(action)),
+        format: typeof action.format === 'string' ? action.format : 'A4',
         printBackground: true
       });
       return;
     case 'html':
-      await fs.writeFile(artifactPath(action.name), await page.content(), 'utf8');
+      await fs.writeFile(artifactPath(requiredName(action)), await page.content(), 'utf8');
       return;
     case 'snapshot':
-      await writeJson(action.name, await page.evaluate(() => ({
+      await writeJson(requiredName(action), await page.evaluate(() => ({
         url: location.href,
         title: document.title,
         text: document.body ? document.body.innerText : '',
@@ -113,37 +143,38 @@ async function runAction(page, action) {
       })));
       return;
     case 'links':
-      await writeJson(action.name, await page.evaluate(() => Array.from(document.links).map((link) => ({
+      await writeJson(requiredName(action), await page.evaluate(() => Array.from(document.links).map((link) => ({
         href: link.href,
         text: link.innerText || link.textContent || '',
         rel: link.rel || ''
       }))));
       return;
     case 'scrape':
-      await writeJson(action.name, await page.evaluate(({ selector, attribute }) => {
+      await writeJson(requiredName(action), await page.evaluate(({ selector, attribute }: { selector: string; attribute?: string }) => {
         return Array.from(document.querySelectorAll(selector)).map((node) => {
           if (attribute) return node.getAttribute(attribute);
+          const element = node as HTMLElement;
           return {
-            text: node.innerText || node.textContent || '',
-            html: node.outerHTML || ''
+            text: element.innerText || element.textContent || '',
+            html: element.outerHTML || ''
           };
         });
-      }, { selector: action.selector, attribute: action.attribute }));
+      }, { selector: stringValue(action.selector), attribute: typeof action.attribute === 'string' ? action.attribute : undefined }));
       return;
     default:
       throw new Error(`Unsupported action: ${action.type}`);
   }
 }
 
-function artifactPath(name) {
+function artifactPath(name: string): string {
   return path.join(artifactDir, name);
 }
 
-async function writeJson(name, value) {
+async function writeJson(name: string, value: unknown): Promise<void> {
   await fs.writeFile(artifactPath(name), JSON.stringify(value, null, 2), 'utf8');
 }
 
-function buildFingerprint(input): any {
+function buildFingerprint(input: RunnerJob): FingerprintSettings {
   const profile = input.fingerprintProfile || 'standard';
   const locale = input.locale || 'en-US';
   const timezoneId = input.timezoneId || 'Asia/Tokyo';
@@ -189,7 +220,7 @@ function buildFingerprint(input): any {
   };
 }
 
-function fingerprintInitScript({ isMobile, locale }) {
+function fingerprintInitScript({ isMobile, locale }: { isMobile: boolean; locale: string }): string {
   const hardwareConcurrency = isMobile ? 8 : 4;
   const deviceMemory = isMobile ? 8 : 4;
   const platform = isMobile ? 'Linux armv8l' : 'Linux x86_64';
@@ -225,4 +256,22 @@ function fingerprintInitScript({ isMobile, locale }) {
   }
 })();
 `;
+}
+
+function requiredName(action: RunnerAction): string {
+  if (typeof action.name !== 'string') throw new Error(`${action.type} action requires name`);
+  return action.name;
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('Expected string action value');
+  return value;
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : fallback;
+}
+
+function optionalNumberValue(value: unknown): number | undefined {
+  return typeof value === 'number' ? value : undefined;
 }

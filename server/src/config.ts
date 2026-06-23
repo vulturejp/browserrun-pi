@@ -1,6 +1,28 @@
 import path from 'node:path';
+import type { FingerprintProfile } from './validation.js';
 
-export function loadConfig(env = process.env) {
+export type RunnerPreset = 'low-memory' | 'balanced' | 'quality';
+
+export type AppConfig = {
+  host: string;
+  port: number;
+  apiToken: string;
+  allowNoAuth: boolean;
+  artifactRoot: string;
+  containerRuntime: string;
+  runnerImage: string;
+  defaultTimeoutMs: number;
+  maxTimeoutMs: number;
+  defaultMinIntervalHours: number;
+  defaultFingerprintProfile: FingerprintProfile;
+  runnerPreset: RunnerPreset;
+  tunnelEndpoint: string;
+  memoryLimit: string;
+  cpus: string;
+  network: string;
+};
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const allowNoAuth = env.BROWSERRUN_ALLOW_NO_AUTH === '1';
   const apiToken = env.BROWSERRUN_API_TOKEN || '';
 
@@ -30,7 +52,7 @@ export function loadConfig(env = process.env) {
   };
 }
 
-function parseInteger(value, fallback, min, max) {
+function parseInteger(value: string | undefined, fallback: number, min: number, max: number): number {
   if (value === undefined || value === '') return fallback;
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
@@ -39,10 +61,10 @@ function parseInteger(value, fallback, min, max) {
   return parsed;
 }
 
-function parseChoice(value, fallback, choices) {
+function parseChoice<T extends string>(value: string | undefined, fallback: T, choices: readonly T[]): T {
   if (value === undefined || value === '') return fallback;
-  if (!choices.includes(value)) {
+  if (!(choices as readonly string[]).includes(value)) {
     throw new Error(`Invalid choice value: ${value}`);
   }
-  return value;
+  return value as T;
 }
